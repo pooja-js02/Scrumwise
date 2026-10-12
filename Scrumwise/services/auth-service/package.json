@@ -1,0 +1,16 @@
+{
+  "name": "@scrumwise/auth-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon --legacy-watch --watch src --watch ../../packages/common --ext js,proto src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@scrumwise/common": "*",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

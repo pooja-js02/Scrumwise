@@ -1,0 +1,25 @@
+{
+  "name": "scrumwise",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scrumwise: a Jira-style tracker with team chat. Microservices + micro-frontends.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "up": "docker compose up",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f",
+    "seed": "node scripts/seed.mjs",
+    "reset-db": "docker compose down -v"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

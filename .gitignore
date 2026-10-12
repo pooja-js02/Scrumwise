@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+.vscode/
+
+# An older copy of the prototype from before a redesign, kept on this machine only.
+Prototype-AI-version-backup/
+
+# The static prototype and the early planning documents are kept on this machine only.
+# One document is published: what problem Scrumwise solves and how.
+Prototype/
+Docs/*
+!Docs/PROBLEM_STATEMENT.md

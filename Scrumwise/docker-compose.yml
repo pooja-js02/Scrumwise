@@ -1,0 +1,161 @@
+# Scrumwise — everything needed to run the app in development.
+#
+#   docker compose up          start everything (first run installs packages, so it takes a few minutes)
+#   docker compose down        stop everything; the database is KEPT
+#   docker compose down -v     stop everything and DELETE the database
+#
+# The database lives in the named volume "mongo-data", so it survives restarts and rebuilds.
+# Source code is mounted into the containers, so edits on your machine reload automatically.
+#
+# Host ports are chosen to avoid the MongoDB (27017) and NATS (4222) already running on this machine.
+
+name: scrumwise
+
+x-node: &node
+  image: node:20-slim
+  working_dir: /app
+  user: "${UID:-1000}:${GID:-1000}"   # files created in the project stay owned by you, not root
+  volumes:
+    - .:/app
+  restart: unless-stopped
+
+x-env: &env
+  HOME: /tmp                          # a writable place for npm's cache
+  NATS_URL: nats://nats:4222
+  JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+  LOG_LEVEL: ${LOG_LEVEL:-info}       # error, warn, info or debug (debug also shows every NATS event)
+  # Watch files by checking them on a timer. The usual way (inotify) runs out of watchers on
+  # machines that already have an editor and other tools open, and then the dev servers crash.
+  CHOKIDAR_USEPOLLING: "true"
+  CHOKIDAR_INTERVAL: "500"
+
+x-backend-deps: &backend-deps
+  deps: { condition: service_completed_successfully }
+  mongo: { condition: service_healthy }
+  nats: { condition: service_started }
+
+services:
+  # ---------- infrastructure ----------
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27018:27017"                 # connect from your machine with mongodb://localhost:27018
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-m", "8222"]
+    ports:
+      - "4223:4222"
+      - "8223:8222"                   # monitoring page: http://localhost:8223
+    restart: unless-stopped
+
+  # Installs every workspace's packages once, before anything else starts.
+  deps:
+    <<: *node
+    restart: "no"
+    environment: *env
+    command: npm install --no-audit --no-fund
+
+  # ---------- microservices (each owns its own database) ----------
+  auth-service:
+    <<: *node
+    command: npm run dev -w @scrumwise/auth-service
+    environment: { <<: *env, PORT: 4001, MONGO_URI: mongodb://mongo:27017/scrumwise_auth }
+    depends_on: *backend-deps
+
+  project-service:
+    <<: *node
+    command: npm run dev -w @scrumwise/project-service
+    environment: { <<: *env, PORT: 4002, MONGO_URI: mongodb://mongo:27017/scrumwise_projects }
+    depends_on: *backend-deps
+
+  chat-service:
+    <<: *node
+    command: npm run dev -w @scrumwise/chat-service
+    environment: { <<: *env, PORT: 4003, MONGO_URI: mongodb://mongo:27017/scrumwise_chat }
+    depends_on: *backend-deps
+
+  notification-service:
+    <<: *node
+    command: npm run dev -w @scrumwise/notification-service
+    environment: { <<: *env, PORT: 4004, MONGO_URI: mongodb://mongo:27017/scrumwise_notifications }
+    depends_on: *backend-deps
+
+  # The only backend the browser talks to. Checks the login token, then forwards to the right service.
+  api-gateway:
+    <<: *node
+    command: npm run dev -w @scrumwise/api-gateway
+    environment:
+      <<: *env
+      PORT: 8080
+      AUTH_URL: http://auth-service:4001
+      PROJECTS_URL: http://project-service:4002
+      CHAT_URL: http://chat-service:4003
+      NOTIFICATIONS_URL: http://notification-service:4004
+    ports:
+      - "8080:8080"
+    depends_on:
+      deps: { condition: service_completed_successfully }
+      nats: { condition: service_started }
+
+  # ---------- micro-frontends ----------
+  # The web shell is the page you open. It loads the three apps below at run time.
+  web-shell:
+    <<: *node
+    command: npm run dev -w @scrumwise/web-shell
+    environment: { <<: *env, GATEWAY_URL: http://api-gateway:8080 }
+    ports:
+      - "5170:5170"                   # open http://localhost:5170
+    depends_on:
+      deps: { condition: service_completed_successfully }
+
+  auth-app:
+    <<: *node
+    command: npm run dev -w @scrumwise/auth-app
+    environment: *env
+    ports:
+      - "5171:5171"
+    depends_on:
+      deps: { condition: service_completed_successfully }
+
+  workspace-app:
+    <<: *node
+    command: npm run dev -w @scrumwise/workspace-app
+    environment: *env
+    ports:
+      - "5172:5172"
+    depends_on:
+      deps: { condition: service_completed_successfully }
+
+  chat-app:
+    <<: *node
+    command: npm run dev -w @scrumwise/chat-app
+    environment: *env
+    ports:
+      - "5173:5173"
+    depends_on:
+      deps: { condition: service_completed_successfully }
+
+  # Fills an empty database with a demo project, people and messages. Does nothing if data exists.
+  seed:
+    <<: *node
+    restart: "no"
+    command: node scripts/seed.mjs
+    environment: { <<: *env, GATEWAY_URL: http://api-gateway:8080 }
+    depends_on:
+      api-gateway: { condition: service_started }
+      auth-service: { condition: service_started }
+      project-service: { condition: service_started }
+      chat-service: { condition: service_started }
+      notification-service: { condition: service_started }
+
+volumes:
+  mongo-data:

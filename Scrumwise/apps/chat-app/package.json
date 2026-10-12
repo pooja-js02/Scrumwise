@@ -1,0 +1,23 @@
+{
+  "name": "@scrumwise/chat-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch & vite preview",
+    "build": "vite build",
+    "standalone": "vite"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.5.0",
+    "@scrumwise/ui": "*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-redux": "^9.2.0",
+    "redux-saga": "^1.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

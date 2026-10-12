@@ -1,0 +1,93 @@
+// Every message that travels between services over NATS.
+// Field names are snake_case here and camelCase in JavaScript (project_name ↔ projectName).
+// To add a field, give it the next unused number. Never reuse or change a number.
+syntax = "proto3";
+package scrumwise;
+
+// user.created
+message UserCreated {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string title = 4;
+  int32 hue = 5;
+}
+
+// project.created, project.member_added, project.member_removed, sprint.changed
+message SpaceEvent {
+  string project = 1;           // the space's key, for example "PAY"
+  string project_name = 2;
+  repeated string members = 3;  // ids of everyone in the space
+  string by = 4;                // who did it
+  string by_name = 5;
+  string user_id = 6;           // the member added or removed
+  string role = 7;
+}
+
+// issue.created, issue.updated, issue.status_changed, issue.assigned, issue.commented
+message IssueEvent {
+  string project = 1;
+  string project_name = 2;
+  repeated string members = 3;
+  string by = 4;
+  string by_name = 5;
+  string key = 6;               // for example "PAY-12"
+  string title = 7;
+  string assignee = 8;
+  string reporter = 9;
+  string status = 10;
+  string status_name = 11;
+  string text = 12;             // the comment, for issue.commented
+}
+
+message Reaction {
+  string emoji = 1;
+  string user = 2;
+}
+
+// The message another message is replying to, as shown in the quote above the reply.
+message ReplyRef {
+  string id = 1;
+  string from_name = 2;
+  string text = 3;
+  bool deleted = 4;             // the original has been deleted, so there is nothing to quote
+}
+
+message ChatMessage {
+  string id = 1;
+  string channel = 2;
+  string from = 3;
+  string from_name = 4;
+  string text = 5;
+  string at = 6;                // ISO date and time
+  string edited_at = 7;         // set once the sender has changed the text
+  repeated Reaction reactions = 8;
+  ReplyRef reply_to = 9;
+}
+
+// chat.message, and chat.deleted when the sender deletes one
+message ChatMessageSent {
+  string channel_id = 1;
+  string kind = 2;              // "channel" or "dm"
+  string project = 3;
+  string name = 4;
+  string from = 5;
+  string from_name = 6;
+  string text = 7;
+  repeated string recipients = 8;
+}
+
+// chat.read
+message ChatRead {
+  string user = 1;
+  string channel_id = 2;
+}
+
+// push.<user id> — delivered to that person's browser by the gateway. push.all goes to everyone connected.
+message Push {
+  string type = 1;              // "message", "message_edited", "message_deleted", "read", "chat", "channel_deleted", "notification", "board", "spaces" or "people"
+  string project = 2;
+  string channel_id = 3;
+  ChatMessage message = 4;
+  string message_id = 5;        // for message_deleted
+}
